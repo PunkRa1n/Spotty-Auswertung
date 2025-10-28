@@ -1,8 +1,11 @@
-# ⚡ Home Assistant Stromoptimierung (AppDaemon)
+# ⚡ Home Assistant - Spotty Stromoptimierung (AppDaemon)
 
 Zwei aufeinander abgestimmte AppDaemon-Apps, die automatisch **Strompreise auswerten** und **optimale Startzeitpunkte für Geräte** berechnen.
-Ideal für Smart Homes mit dynamischen Stromtarifen
 ---
+⚠️ Zugegeben, das meiste ist KI erstellter Code und bedarf noch sehr viel Optimierung.
+
+---
+
 
 ## 🧩 Komponenten
 
@@ -40,7 +43,7 @@ Ideal für Smart Homes mit dynamischen Stromtarifen
      class: Stromoptimierung
    ```
 
-3. Installiere das pandas Python-Package in AppDaemon:
+3. Installiere das "pandas" Python-Package in AppDaemon:
 
    a. Einstellungen -> Addons -> Appdeamon
    
@@ -57,12 +60,6 @@ Ideal für Smart Homes mit dynamischen Stromtarifen
 ## 💾 Forecast-CSV
 
 Die Datei `strompreise.csv` wird automatisch in `apps/csv_forecast` angelegt.
-
----
-
-
-⚠️ Zugegeben, das meiste ist KI erstellter Code und bedarf noch sehr viel Optimierung ...
-
 
 ---
 ## 🧰 Lizenz
