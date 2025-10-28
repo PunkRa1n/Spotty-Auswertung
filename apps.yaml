@@ -1,0 +1,12 @@
+strompreise:
+  module: strompreise
+  class: Strompreise
+  # Help - https://hilfe.spottyenergie.at/kb/article/74-schnittstelle-api-b%C3%B6rsenpreise/
+  # Ist nur für CONSUMPTION/MARKET
+  # GENERATION ist NICHT Implementiert.
+  url: "https://i.spottyenergie.at/api/prices/CONSUMPTION/AAAAAAAA-BBBB-CCCC-DDDD-EEEEEEEEEEEE?timezone=at"
+
+stromoptimierung:
+  module: stromoptimierung
+  class:
+    Stromoptimierung
