@@ -5,6 +5,7 @@ strompreise:
   # Ist nur für CONSUMPTION/MARKET
   # GENERATION ist NICHT Implementiert.
   url: "https://i.spottyenergie.at/api/prices/CONSUMPTION/AAAAAAAA-BBBB-CCCC-DDDD-EEEEEEEEEEEE?timezone=at"
+  report_time: "07:00"
 
 stromoptimierung:
   module: stromoptimierung
