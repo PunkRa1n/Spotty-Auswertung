@@ -11,6 +11,9 @@ class Strompreise(hass.Hass):
     def initialize(self):
         self.log("Strompreis App gestartet")
         self.url = self.args.get("url", "http://localhost:8000/")
+        self.report_time = self.args["report_time"]
+
+
 
         # Wenn der Schwellenwert in HA geändert wird → neu auswerten
         self.listen_state(self.schwelle_geaendert, "input_number.spotty_strompreis_schwelle_prozent")
@@ -36,7 +39,9 @@ class Strompreise(hass.Hass):
         self.run_every(self.auswerten, startzeit, 15 * 60)
 
         # Täglicher Bericht
-        self.run_daily(self.tagesbericht, datetime.strptime("18:04", "%H:%M").time())
+        report_time = datetime.strptime(self.report_time, "%H:%M").time()
+        self.run_daily(self.tagesbericht, report_time)
+        
 
 
     def schwelle_geaendert(self, entity, attribute, old, new, kwargs):
@@ -47,8 +52,8 @@ class Strompreise(hass.Hass):
         self.log("Spotty wird abgefragt...")
         try:
             headers = {
-                "User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X)"
-                              "AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148"
+                "User-Agent":   "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X)"
+                                "AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148"
             }
             response = requests.get(self.url, timeout=5, headers=headers)
             response.raise_for_status()
@@ -140,30 +145,30 @@ class Strompreise(hass.Hass):
             # Sensoren aktualisieren
             if aktueller_preis is not None:
                 self.set_state("sensor.spotty_aktueller_strompreis", state=round(aktueller_preis, 2),
-                               attributes={"unit_of_measurement": "ct/kWh"})
+                                attributes={"unit_of_measurement": "ct/kWh"})
                 self.set_state("sensor.spotty_aktueller_strompreis_eur", state=round(aktueller_preis / 100, 4),
-                               attributes={"unit_of_measurement": "EUR/kWh"})
+                                attributes={"unit_of_measurement": "EUR/kWh","icon": "mdi:set-none"})
 
             if naechster_preis is not None:
                 self.set_state("sensor.spotty_naechster_strompreis", state=round(naechster_preis, 2),
-                               attributes={"unit_of_measurement": "ct/kWh"})
+                                attributes={"unit_of_measurement": "ct/kWh"})
 
             # Extremwerte
             self.set_state("sensor.spotty_niedrigster_strompreis_wert", state=round(niedrigster["price"], 2),
-                           attributes={"unit_of_measurement": "ct/kWh"})
+                            attributes={"unit_of_measurement": "ct/kWh"})
             self.set_state("sensor.spotty_niedrigster_strompreis_zeit", state=niedrigster["from"],
-                          attributes={"device_class": "timestamp"})
+                            attributes={"device_class": "timestamp"})
             self.set_state("sensor.spotty_hoechster_strompreis_wert", state=round(hoechster["price"], 2),
-                           attributes={"unit_of_measurement": "ct/kWh"})
+                            attributes={"unit_of_measurement": "ct/kWh"})
             self.set_state("sensor.spotty_hoechster_strompreis_zeit", state=hoechster["from"],
-                          attributes={"device_class": "timestamp"})
+                            attributes={"device_class": "timestamp"})
 
             # Binärsensor für günstigstes Intervall
             guenstigste_zeit = datetime.fromisoformat(niedrigster["from"]).replace(second=0, microsecond=0)
             ist_jetzt = aktuelles_intervall == guenstigste_zeit
             self.set_state("binary_sensor.spotty_guenstigstes_stromintervall",
-                           state="on" if ist_jetzt else "off",
-                           attributes={"friendly_name": "Günstigstes Stromintervall", "icon": "mdi:clock-check-outline"})
+                            state="on" if ist_jetzt else "off",
+                            attributes={"friendly_name": "Günstigstes Stromintervall", "icon": "mdi:clock-check-outline"})
 
             # Dynamischer Schwellenwert
             preise = [e["price"] for e in daten_von_heute]
@@ -180,7 +185,7 @@ class Strompreise(hass.Hass):
             schwelle = preise_sortiert[index]
 
             self.set_state("sensor.spotty_schwelle", state=round(schwelle, 2),
-                           attributes={"unit_of_measurement": "ct/kWh"})
+                            attributes={"unit_of_measurement": "ct/kWh"})
 
             # Längster günstiger Zeitraum
             aktueller_block = []
@@ -210,12 +215,12 @@ class Strompreise(hass.Hass):
                 self.set_state("sensor.spotty_laengster_guenstiger_zeitraum_start", state=best_start.isoformat(), attributes={"device_class": "timestamp"})
                 self.set_state("sensor.spotty_laengster_guenstiger_zeitraum_ende", state=best_end.isoformat(), attributes={"device_class": "timestamp"})
                 self.set_state("sensor.spotty_laengster_guenstiger_zeitraum_dauer", state=len(bester_block) * 15,
-                               attributes={"unit_of_measurement": "min"})
+                                attributes={"unit_of_measurement": "min"})
                 self.set_state("sensor.spotty_guenstigster_durchschnittspreis", state=round(avg_block, 2),
-                               attributes={"unit_of_measurement": "ct/kWh"})
+                                attributes={"unit_of_measurement": "ct/kWh"})
 
                 self.set_state("binary_sensor.spotty_guenstiger_zeitraum_aktiv",
-                               state="on" if best_start <= now < best_end else "off")
+                                state="on" if best_start <= now < best_end else "off")
             else:
                 self.set_state("binary_sensor.spotty_guenstiger_zeitraum_aktiv", state="off")
 
@@ -231,15 +236,15 @@ class Strompreise(hass.Hass):
             forecast_state = forecast_data[0]["price"] if forecast_data else None
 
             self.set_state("sensor.spotty_forecast",
-                           state=forecast_state,
-                           attributes={"unit_of_measurement": "ct/kWh", "forecast": forecast_data})
+                            state=forecast_state,
+                            attributes={"unit_of_measurement": "ct/kWh", "forecast": forecast_data})
 
             self.log("Abfrage abgeschlossen.")
 
         except Exception as e:
-            self.log(f"❌ Fehler beim Abrufen/Auswerten: {e}", level="ERROR")
+            self.log(f"Fehler beim Abrufen/Auswerten: {e}", level="ERROR")
 
-
+    # TODO: notwendig?
     def benachrichtigen_vorwarnung(self, eintrag, typ, jetzt):
         """Sendet 15 Minuten vor günstigstem/teuerstem Preis eine Benachrichtigung."""
         zeitpunkt = datetime.fromisoformat(eintrag["from"]).astimezone()
@@ -248,10 +253,14 @@ class Strompreise(hass.Hass):
             preis = round(eintrag["price"], 2)
             if typ == "günstig":
                 self.call_service("notify/notify", title="⚡ Bald günstigster Strompreis",
-                                  message=f"In 15 Minuten ist der günstigste Preis: {preis} ct/kWh")
+                                    message=f"In 15 Minuten ist der günstigste Preis: {preis} ct/kWh",
+                                    data={"tag": "spotty-soon-cheap"}
+                                    )
             else:
                 self.call_service("notify/notify", title="⚠️ Bald teuerster Strompreis",
-                                  message=f"In 15 Minuten ist der höchste Preis: {preis} ct/kWh")
+                                    message=f"In 15 Minuten ist der höchste Preis: {preis} ct/kWh",
+                                    data={"tag": "spotty-soon-expensive"}
+                                    )
 
 
     def tagesbericht(self, kwargs):
@@ -266,9 +275,13 @@ class Strompreise(hass.Hass):
             return
 
         nachricht = (
-            f"📋 Strompreis Übersicht:\n"
             f"• Tief: {niedrig} ct/kWh um {tiefzeit[11:16]} Uhr\n"
             f"• Hoch: {hoch} ct/kWh um {hochzeit[11:16]} Uhr"
         )
-        self.log("Sende Benachrichtugung mittels Notify.Notify")
-        self.call_service("notify/notify", title="🔎 Strompreis-Übersicht", message=nachricht)
+        self.log("Sende Benachrichtugung mittels dienst Notify.Notify")
+
+# https://companion.home-assistant.io/docs/notifications/notifications-basic/#replacing
+        self.call_service("notify/notify",  title="🔎 Strompreis-Übersicht",
+                                            message=nachricht,
+                                            data={"tag": "spotty-daily-report"}
+                                            )
