@@ -37,6 +37,7 @@ Zwei aufeinander abgestimmte AppDaemon-Apps, die automatisch **Strompreise auswe
      module: strompreise
      class: Strompreise
      url: "https://i.spottyenergie.at/api/prices/CONSUMPTION/AAAAAAAA-BBBB-CCCC-DDDD-EEEEEEEEEEEE?timezone=at"  # <-------- Deine CONSUMPTION Spotty-API
+     report_time: "07:00"
 
    stromoptimierung:
      module: stromoptimierung
