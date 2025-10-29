@@ -31,8 +31,9 @@ class Stromoptimierung(hass.Hass):
         # Tägliche Auswertung um Mitternacht (heute)
         self.run_daily(self.auswerten, "00:00:30")
 
-        # Auch morgige Auswertung um Mitternacht starten
-        self.run_daily(self.auswerten_morgen, "00:00:45")
+        # Um Mitternacht alle morgigen Sensoren zurücksetzen
+        self.run_daily(self.reset_morgen_sensors, "00:00:00")
+
 
         # Prüfung zwischen 13–15 Uhr, wenn neue Börsendaten für morgen kommen
         for stunde in [13, 14, 15]:
@@ -149,11 +150,11 @@ class Stromoptimierung(hass.Hass):
 
             if best_start:
                 self.set_state(sensor_name, state=best_start.isoformat(),
-                               attributes={
-                                   "device_class": "timestamp",
-                                   "friendly_name": f"Optimaler Start {name}",
-                                   "cost": round(best_cost, 2)
-                               })
+                                attributes={
+                                    "device_class": "timestamp",
+                                    "friendly_name": f"Optimaler Start {name}",
+                                    "cost": round(best_cost, 2)
+                                })
                 self.log(f"{name}: optimaler Start {best_start}, Kosten {best_cost:.2f}")
             else:
                 self.set_state(sensor_name, state="unknown")
@@ -182,10 +183,11 @@ class Stromoptimierung(hass.Hass):
             for name in self.patterns.keys():
                 sensor_morgen = f"sensor.spotty_optimaler_{name}_start_morgen"
                 self.set_state(sensor_morgen, state="unknown",
-                               attributes={
-                                   "device_class": "timestamp",
-                                   "friendly_name": f"Optimaler Start {name} (morgen)"
-                               })
+                                attributes={
+                                    "device_class": "timestamp",
+                                    "friendly_name": f"Optimaler Start {name} (morgen)",
+                                    "icon": "mdi:update"
+                                })
             return
 
         for name, pattern in self.patterns.items():
@@ -194,12 +196,25 @@ class Stromoptimierung(hass.Hass):
 
             if best_start_morgen:
                 self.set_state(sensor_morgen, state=best_start_morgen.isoformat(),
-                               attributes={
-                                   "device_class": "timestamp",
-                                   "friendly_name": f"Optimaler Start {name} (morgen)",
-                                   "cost": round(best_cost_morgen, 2)
-                               })
+                                attributes={
+                                    "device_class": "timestamp",
+                                    "friendly_name": f"Optimaler Start {name} (morgen)",
+                                    "icon": "mdi:update",
+                                    "cost": round(best_cost_morgen, 2)
+                                })
                 self.log(f"{name} (morgen): optimaler Start {best_start_morgen}, Kosten {best_cost_morgen:.2f}")
             else:
                 self.set_state(sensor_morgen, state="unknown")
                 self.log(f"{name}: Kein optimaler Start (morgen) gefunden")
+
+    # --------- sensoren auf unbekannt setzen --------- 
+    def reset_morgen_sensors(self, kwargs):
+        self.log("Mitternacht: Setze morgige Sensoren auf 'unknown'")
+        for name in self.patterns.keys():
+            sensor_morgen = f"sensor.spotty_optimaler_{name}_start_morgen"
+            self.set_state(sensor_morgen, state="unknown",
+                            attributes={
+                                "device_class": "timestamp",
+                                "friendly_name": f"Optimaler Start {name} (morgen)",
+                                "icon": "mdi:update"
+                            })
