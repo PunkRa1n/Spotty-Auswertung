@@ -3,6 +3,7 @@ import os
 import pandas as pd
 from datetime import datetime, timedelta
 
+
 class Stromoptimierung(hass.Hass):
 
     def initialize(self):
@@ -13,17 +14,40 @@ class Stromoptimierung(hass.Hass):
 
         self.log("Stromoptimierung App gestartet")
 
-        # Muster laden
+        # --------- Muster laden ---------
         self.patterns = {}
-        for file in os.listdir(self.csv_patterns_folder):
-            if file.endswith(".csv"):
-                name = file.replace(".csv", "")
-                path = os.path.join(self.csv_patterns_folder, file)
-                pattern = self.csv_to_pattern(path)
-                if pattern:
-                    self.patterns[name] = pattern
-                    self.log(f"[CSV] {name}: Muster geladen")
+
+        # Ordner prüfen / ggf. anlegen
+        if not os.path.exists(self.csv_patterns_folder):
+            os.makedirs(self.csv_patterns_folder, exist_ok=True)
+            self.log(f"Ordner {self.csv_patterns_folder} wurde  erstellt.", level="INFO")
+
+        # CSV-Dateien im Muster-Ordner suchen
+        csv_files = [f for f in os.listdir(self.csv_patterns_folder) if f.endswith(".csv")]
+        if not csv_files:
+            self.log(f"Keine CSV-Musterdateien im Ordner {self.csv_patterns_folder} gefunden.", level="WARNING")
+            #self.log(f"Bitte lege hier Geraetemuster (z. B. vom Geschirrspueler) ab.", level="WARNING")
+            self.log(f"--- App wird beendet. ---", level="WARNING")
+            self.stop_app(self.name)
+            return
+
+        # Muster laden
+        for file in csv_files:
+            name = file.replace(".csv", "")
+            path = os.path.join(self.csv_patterns_folder, file)
+            pattern = self.csv_to_pattern(path)
+            if pattern:
+                self.patterns[name] = pattern
+                self.log(f"[CSV] {name}: Muster geladen")
+
+        # Prüfen, ob überhaupt gültige Muster vorhanden sind
+        if not self.patterns:
+            self.log("Keine gültigen Muster erkannt. App wird beendet.", level="WARNING")
+            return
+
         self.log(f"Geraete-Muster geladen: {list(self.patterns.keys())}")
+
+
 
         # Erste Auswertungen direkt nach dem Start
         self.run_in(self.initial_auswertungen, 2)
@@ -39,13 +63,14 @@ class Stromoptimierung(hass.Hass):
         for stunde in [13, 14, 15]:
             zeit = f"{stunde:02d}:01:00"
             self.run_daily(self.auswerten_morgen, zeit)
-            self.log(f"Plane tägliche Prüfung für morgige Preise um {zeit}")
+            self.log(f"Plane taegliche Pruefung für morgige Preise um {zeit}")
 
 
     # --------- Initial beide Auswertungen ---------
     def initial_auswertungen(self, kwargs):
         self.log("Starte Initialauswertung: heute + morgen")
         self.auswerten({})
+        #self.reset_morgen_sensors({})
         self.auswerten_morgen({})
 
 
@@ -112,7 +137,7 @@ class Stromoptimierung(hass.Hass):
             return df["price"]
 
         except Exception as e:
-            self.log(f"Fehler beim Laden des Forecast: {e}", level="ERROR")
+            self.log(f"Fehler beim laden des Forecast: {e}", level="ERROR")
             return None
 
 
@@ -141,7 +166,7 @@ class Stromoptimierung(hass.Hass):
 
         forecast = self.lade_forecast()
         if forecast is None:
-            self.log("Kein Forecast verfügbar")
+            self.log("Kein Forecast verfuegbar")
             return
 
         for name, pattern in self.patterns.items():
@@ -155,7 +180,7 @@ class Stromoptimierung(hass.Hass):
                                     "friendly_name": f"Optimaler Start {name}",
                                     "cost": round(best_cost, 2)
                                 })
-                self.log(f"{name}: optimaler Start {best_start}, Kosten {best_cost:.2f}")
+                self.log(f"{name}: optimaler Start {best_start}, Indexwert: {best_cost:.2f}")
             else:
                 self.set_state(sensor_name, state="unknown")
                 self.log(f"{name}: kein optimaler Start gefunden")
@@ -170,25 +195,27 @@ class Stromoptimierung(hass.Hass):
             self.log("Kein Forecast verfügbar (morgen)")
             return
 
-        tzinfo = forecast.index.tz or "UTC"
+        tzinfo = forecast.index.tz or "UTC" 
         jetzt = pd.Timestamp.now(tz=tzinfo)
         morgen_start = (jetzt + pd.Timedelta(days=1)).floor("D")
         uebermorgen_start = (jetzt + pd.Timedelta(days=2)).floor("D")
 
         forecast_morgen = forecast[(forecast.index >= morgen_start) & (forecast.index < uebermorgen_start)]
 
-        if forecast_morgen.empty:
-            self.log("Keine morgigen Forecast-Daten verfügbar (noch nicht bereitgestellt).")
-            # Sensors trotzdem auf "unknown" setzen
+        if forecast_morgen.empty or all(forecast_morgen.index.date == datetime.now().date()):
+            # Keine gültigen morgigen Daten
+            self.log("Keine morgigen Forecast-Daten verfuegbar (noch nicht bereitgestellt).")
             for name in self.patterns.keys():
                 sensor_morgen = f"sensor.spotty_optimaler_{name}_start_morgen"
                 self.set_state(sensor_morgen, state="unknown",
-                                attributes={
-                                    "device_class": "timestamp",
-                                    "friendly_name": f"Optimaler Start {name} (morgen)",
-                                    "icon": "mdi:update"
-                                })
+                               attributes={
+                                   "device_class": "timestamp",
+                                   "friendly_name": f"Optimaler Start {name} (morgen)",
+                                   "icon": "mdi:update",
+                                   "cost": "unknown"
+                               })
             return
+
 
         for name, pattern in self.patterns.items():
             best_start_morgen, best_cost_morgen = self.berechne_optimalen_start(forecast_morgen, pattern)
@@ -202,7 +229,7 @@ class Stromoptimierung(hass.Hass):
                                     "icon": "mdi:update",
                                     "cost": round(best_cost_morgen, 2)
                                 })
-                self.log(f"{name} (morgen): optimaler Start {best_start_morgen}, Kosten {best_cost_morgen:.2f}")
+                self.log(f"{name} (morgen): optimaler Start {best_start_morgen}, Indexwert: {best_cost_morgen:.2f}")
             else:
                 self.set_state(sensor_morgen, state="unknown")
                 self.log(f"{name}: Kein optimaler Start (morgen) gefunden")
@@ -213,8 +240,11 @@ class Stromoptimierung(hass.Hass):
         for name in self.patterns.keys():
             sensor_morgen = f"sensor.spotty_optimaler_{name}_start_morgen"
             self.set_state(sensor_morgen, state="unknown",
-                            attributes={
-                                "device_class": "timestamp",
-                                "friendly_name": f"Optimaler Start {name} (morgen)",
-                                "icon": "mdi:update"
-                            })
+                               attributes={
+                                   "device_class": "timestamp",
+                                   "friendly_name": f"Optimaler Start {name} (morgen)",
+                                   "icon": "mdi:update",
+                                   "cost": "unknown"
+                               })
+
+
