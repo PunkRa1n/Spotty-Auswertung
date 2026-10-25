@@ -5,14 +5,12 @@ from datetime import datetime, timedelta, timezone
 import csv
 import os
 
-
 class Strompreise(hass.Hass):
 
     def initialize(self):
         self.log("Strompreis App gestartet")
-        self.url = self.args.get("url", "http://localhost:8000/")
+        self.url = self.args["url"]
         self.report_time = self.args["report_time"]
-
 
 
         # Wenn der Schwellenwert in HA geändert wird → neu auswerten
@@ -40,7 +38,7 @@ class Strompreise(hass.Hass):
 
         # Täglicher Bericht
         report_time = datetime.strptime(self.report_time, "%H:%M").time()
-        self.run_daily(self.tagesbericht, report_time)
+        #self.run_daily(self.tagesbericht, report_time)
         
 
 
@@ -55,7 +53,7 @@ class Strompreise(hass.Hass):
                 "User-Agent":   "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X)"
                                 "AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148"
             }
-            response = requests.get(self.url, timeout=5, headers=headers)
+            response = requests.get(self.url, timeout=15, headers=headers)
             response.raise_for_status()
             data = response.json()
 
@@ -82,10 +80,13 @@ class Strompreise(hass.Hass):
             os.makedirs(forecast_csv_folder, exist_ok=True)
             forecast_csv_file = os.path.join(forecast_csv_folder, "strompreise.csv")
             
-            # Neue CSV-Daten aufbereiten (sortiert, rund auf 2 Dezimalstellen)
+            # Neue CSV-Daten aufbereiten (sortiert, rund auf 2 Dezimalstellen).
+            # WICHTIG: in UTC schreiben (...+00:00). So enthaelt die Datei nie
+            # gemischte Offsets - auch am Zeitumstellungstag nicht. Der Optimierer
+            # konvertiert beim Lesen zurueck in lokale Zeit.
             neue_daten = [
                 (
-                    datetime.fromisoformat(e["from"]).astimezone().replace(second=0, microsecond=0).isoformat(),
+                    datetime.fromisoformat(e["from"]).astimezone(timezone.utc).replace(second=0, microsecond=0).isoformat(),
                     round(e["price"], 2),
                 )
                 for e in daten_von_heute_und_morgen
@@ -110,8 +111,7 @@ class Strompreise(hass.Hass):
                     writer.writerows(neue_daten)
                 self.log(f"Forecast CSV aktualisiert: {forecast_csv_file} ({len(neue_daten)} Einträge)")
             else:
-                self.log("Forecast CSV unverändert – kein Schreibvorgang nötig.")
-
+                self.log("Spotty Forecast CSV unverändert.")
 
 
             # Filtere nur heutige Daten für HA-Sensoren
@@ -240,6 +240,8 @@ class Strompreise(hass.Hass):
                             attributes={"unit_of_measurement": "ct/kWh", "forecast": forecast_data})
 
             self.log("Abfrage abgeschlossen.")
+            #self.log("Starte 'Stromoptimieung'.")
+            #self.restart_app("stromoptimierung")
 
         except Exception as e:
             self.log(f"Fehler beim Abrufen/Auswerten: {e}", level="ERROR")
